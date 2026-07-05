@@ -1,0 +1,5 @@
+anthropic
+numpy
+sentence-transformers
+pystray
+Pillow
