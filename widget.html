@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Elara</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: transparent; font-family: 'Courier New', monospace; }
+#w {
+  position: fixed; top: 16px; right: 16px;
+  background: rgba(8,8,8,0.93); color: #aaa;
+  border: 1px solid #1a4; border-radius: 5px;
+  padding: 10px 13px; min-width: 220px;
+  font-size: 11px; line-height: 1.65; cursor: move;
+  user-select: none; z-index: 9999;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.6);
+}
+h3 { font-size: 12px; color: #2d2; margin-bottom: 7px; letter-spacing: 3px; }
+.row { display: flex; justify-content: space-between; gap: 6px; }
+.k { color: #555; }
+.v { color: #2d2; font-weight: bold; min-width: 70px; text-align: right; }
+.orange { color: #f80; }
+#badge { color: #ff0; font-size: 10px; margin-top: 5px; letter-spacing: 1px; display: none; }
+#dot { width: 6px; height: 6px; border-radius: 50%; background: #1a4; display: inline-block; margin-right: 5px; vertical-align: middle; }
+hr.sep { border: none; border-top: 1px solid #1a3; margin: 7px 0; }
+#cfg-row { display: flex; gap: 5px; margin-top: 4px; align-items: center; }
+#cfg-sel {
+  flex: 1; background: #111; color: #2d2; border: 1px solid #1a4;
+  border-radius: 3px; font-family: inherit; font-size: 10px; padding: 2px 4px;
+  cursor: pointer;
+}
+#cfg-sel option { background: #111; color: #2d2; }
+#cfg-apply {
+  background: #0a2a0a; color: #2d2; border: 1px solid #1a4;
+  border-radius: 3px; font-family: inherit; font-size: 10px;
+  padding: 2px 6px; cursor: pointer;
+}
+#cfg-apply:hover { background: #1a4; color: #000; }
+#cfg-status { font-size: 10px; color: #555; margin-top: 2px; min-height: 13px; }
+</style>
+</head>
+<body>
+<div id="w">
+  <h3><span id="dot"></span>ELARA</h3>
+  <div class="row"><span class="k">cycles</span>    <span class="v" id="cycles">—</span></div>
+  <div class="row"><span class="k">compressed</span><span class="v" id="comp">—</span></div>
+  <div class="row"><span class="k">lock_frac</span> <span class="v" id="lock">—</span></div>
+  <div class="row"><span class="k">regime</span>    <span class="v" id="regime">—</span></div>
+  <div class="row"><span class="k">δ</span>          <span class="v" id="delta">—</span></div>
+  <div class="row"><span class="k">ρ*</span>         <span class="v" id="rho">—</span></div>
+  <div id="badge">⚡ RESONANCE LOCK</div>
+  <hr class="sep">
+  <div id="cfg-row">
+    <select id="cfg-sel"></select>
+    <button id="cfg-apply">apply</button>
+  </div>
+  <div id="cfg-status"></div>
+</div>
+<script>
+// Drag
+const w = document.getElementById('w');
+let ox=0, oy=0, drag=false;
+w.addEventListener('mousedown', e => {
+  drag=true; ox=e.clientX-w.offsetLeft; oy=e.clientY-w.offsetTop;
+  document.addEventListener('mousemove', mv);
+  document.addEventListener('mouseup', up);
+});
+function mv(e){ if(!drag)return; w.style.left=(e.clientX-ox)+'px'; w.style.top=(e.clientY-oy)+'px'; w.style.right='auto'; }
+function up(){ drag=false; document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); }
+
+// Poll
+async function tick(){
+  try {
+    const r = await fetch('/metrics');
+    const d = await r.json();
+    document.getElementById('cycles').textContent = d.cycles ?? '—';
+    document.getElementById('comp').textContent   = d.compressed ?? '—';
+    document.getElementById('lock').textContent   = d.lock_frac != null ? d.lock_frac.toFixed(3) : '—';
+    const L = d.last;
+    if(L){
+      document.getElementById('regime').textContent = L.regime ?? '—';
+      const dv = L.delta;
+      const dEl = document.getElementById('delta');
+      dEl.textContent = dv != null ? (dv>=0?'+':'')+dv.toFixed(4) : '—';
+      dEl.className = 'v' + (dv!=null && dv<=0 ? '' : ' orange');
+      document.getElementById('rho').textContent = L.rho_star != null ? L.rho_star.toFixed(3) : '—';
+      document.getElementById('badge').style.display = L.resonance_lock ? 'block' : 'none';
+    }
+    document.getElementById('dot').style.background='#1a4';
+  } catch(e){
+    document.getElementById('dot').style.background='#611';
+  }
+}
+tick(); setInterval(tick, 1000);
+
+// Config selector
+const sel = document.getElementById('cfg-sel');
+const applyBtn = document.getElementById('cfg-apply');
+const cfgStatus = document.getElementById('cfg-status');
+
+async function loadConfigs() {
+  try {
+    const r = await fetch('/api/configs');
+    const d = await r.json();
+    sel.innerHTML = '';
+    for (const c of d.configs) {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.id;
+      opt.title = `${c.label} | τ_dr=${c.tau_lock_dr?.toFixed(6)} | lf=${c.lock_frac_coherent?.toFixed(3)}`;
+      if (c.id === d.active_id) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    cfgStatus.textContent = 'active: ' + d.active_id;
+    cfgStatus.style.color = '#555';
+  } catch(e) {
+    cfgStatus.textContent = 'registry unavailable';
+  }
+}
+
+applyBtn.addEventListener('click', async () => {
+  const id = sel.value;
+  if (!id) return;
+  try {
+    const r = await fetch('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({active_id: id})
+    });
+    const d = await r.json();
+    if (d.ok) {
+      cfgStatus.textContent = 'applied: ' + id;
+      cfgStatus.style.color = '#2d2';
+    } else {
+      cfgStatus.textContent = 'error: ' + d.error;
+      cfgStatus.style.color = '#f44';
+    }
+  } catch(e) {
+    cfgStatus.textContent = 'request failed';
+    cfgStatus.style.color = '#f44';
+  }
+});
+
+loadConfigs();
+</script>
+</body>
+</html>

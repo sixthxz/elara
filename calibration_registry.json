@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "description": "Per-domain empirical calibration records for Elara RRG proxy. Each entry is a reusable template — copy params into proxy.py / calibrate_proxy.py for the matching use case.",
+    "fields": {
+      "id":            "Short identifier, format DOMAIN-NN",
+      "label":         "Human-readable description",
+      "W":             "Coherence window (number of turn pairs)",
+      "tau_lock_rho":  "Gate 1 |rho*| lower bound",
+      "tau_lock_dr":   "Gate 1 d_rho upper bound (empirical)",
+      "tau_meta":      "Juncture meta-signal threshold",
+      "tau_exit":      "Exit threshold",
+      "MIN_KEEP_PAIRS":"Minimum verbatim pairs kept after compression",
+      "calibrated_on": "ISO date of calibration run",
+      "method":        "How tau_lock_dr was derived",
+      "sessions":      "Number of sessions used for calibration",
+      "lock_frac_coherent": "Observed lock_frac on COHERENT sessions (validation)",
+      "notes":         "Free-form observations"
+    }
+  },
+  "entries": [
+    {
+      "id":                 "CODING-01",
+      "label":              "Coding Q&A — conversational (Python, algorithms, async, descriptors)",
+      "W":                  3,
+      "tau_lock_rho":       0.35,
+      "tau_lock_dr":        0.027053,
+      "tau_meta":           0.015,
+      "tau_exit":           0.04,
+      "MIN_KEEP_PAIRS":     2,
+      "calibrated_on":      "2026-05-07",
+      "method":             "calibrate_proxy.py --collect --domain coding --W 3 --n-per-cat 6 (18 sessions total, 3 categories × 6 each)",
+      "sessions":           18,
+      "lock_frac_coherent": 0.667,
+      "notes": "Covers conversational coding Q&A (questions about Python concepts, algorithms, async, descriptors). tau_lock_dr is 24% higher than PROXY-01 prose (0.027 vs 0.022) — coding sessions have more consistent technical vocabulary, raising baseline d_rho. VARIED has perfect separation (p01=0.058 >> tau=0.027). MIXED lock_frac=0.50 throughout sweep — coding MIXED templates are too semantically close to COHERENT; the model treats them as related. Gap: does not cover code-paste patterns (user pastes raw code for fix/review). For code-paste calibration, add CODING-02 with templates where user messages contain large code blocks."
+    },
+    {
+      "id":                 "PROXY-01",
+      "label":              "Naturalistic prose — deepening Q&A (Spanish/English)",
+      "W":                  3,
+      "tau_lock_rho":       0.35,
+      "tau_lock_dr":        0.021842,
+      "tau_meta":           0.015,
+      "tau_exit":           0.04,
+      "MIN_KEEP_PAIRS":     2,
+      "calibrated_on":      "2026-05-04",
+      "method":             "calibrate_proxy.py --collect --W 3 --n-per-cat 6 (18 sessions total, 3 categories × 6 each)",
+      "sessions":           18,
+      "lock_frac_coherent": 0.750,
+      "notes": "Validated end-to-end: COHERENT lock_frac=0.750 (43.9% simulated token savings), MIXED=0.250, VARIED=0.500. Gate 1 fires once per session at turn W (d_rho=0 by Var([single])); subsequent turns see d_rho>>tau_lock_dr as rho_ab accumulates variance. MIN_KEEP_PAIRS lowered 3→2 on 2026-05-07 to allow cut at first eligible turn (turn 4, 7 messages)."
+    }
+  ]
+}
